@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Goodreads Recommender System</title>
+</head>
+<body>
+    <h1>Welcome to the Goodreads Recommender System!</h1>
+    <form method="POST" action="/predict">
+        <label for="user_id">User ID:</label>
+        <input type="text" id="user_id" name="user_id">
+        <input type="submit" value="Get Recommendations">
+    </form>
+    {% if prediction %}
+        <p>Recommendations: {{ prediction }}</p>
+    {% endif %}
+</body>
+</html>

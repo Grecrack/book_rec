@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recommend a Book</title>
+</head>
+<body>
+    <h1>Recommend a Book</h1>
+    <form action="{{ url_for('recommend_book') }}" method="POST">
+        <label for="book">Select a Book:</label>
+        <select id="book" name="book">
+            <!-- Display options for selecting a book -->
+            {% for book in books %}
+            <option value="{{ book.id }}">{{ book.title }} - {{ book.author }}</option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="Recommend">
+    </form>
+</body>
+</html>
