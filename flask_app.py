@@ -2,20 +2,22 @@ from flask import Flask, request, jsonify
 from keras.models import load_model
 import numpy as np
 import pandas as pd
+import pickle
 
 app = Flask(__name__)
 
 # Load the model
-model = load_model('mae_best_model.h5')
+model = load_model('book/mae_best_model.h5')
 
-with open('user2user_encoded.pkl', 'rb') as f:
+with open('book/processed/user2user_encoded.pkl', 'rb') as f:
     user2user_encoded = pickle.load(f)
 
-with open('book2book_encoded.pkl', 'rb') as f:
+with open('book/processed/book2book_encoded.pkl', 'rb') as f:
     book2book_encoded = pickle.load(f)
 
-with open('book_id_to_name.pkl', 'rb') as f:
+with open('book/processed/book_id_to_name.pkl', 'rb') as f:
     book_id_to_name = pickle.load(f)
+
 
 
 def recommend_books(user_id, num_books=5):
@@ -24,7 +26,7 @@ def recommend_books(user_id, num_books=5):
 
     # Getting the book ids in the encoding order
     book_ids = list(book2book_encoded.keys())
-
+    book_ids = np.array(book_ids) - 1
     # Repeating the user id to match the shape of book ids
     user_array = np.array([user_encoded for _ in range(len(book_ids))])
 
@@ -48,4 +50,3 @@ def recommend():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
