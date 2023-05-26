@@ -1,5 +1,5 @@
 @echo off
-cd rec_env\Scripts
+cd env\rec_env\Scripts
 call activate.bat
 cd ..\..
 echo Running in the rec_env virtual environment.

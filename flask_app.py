@@ -1,49 +1,51 @@
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-from tensorflow.keras.models import load_model
+from flask import Flask, request, jsonify
+from keras.models import load_model
 import numpy as np
 import pandas as pd
 
-app = Flask(__name__, template_folder='templates')
-CORS(app)
-# Load your RS model
-model = load_model('Data/book/mae_best_model.h5')
+app = Flask(__name__)
 
-# Load the data
-ratings = pd.read_csv('Data/book/ratings.csv')
+# Load the model
+model = load_model('mae_best_model.h5')
 
-@app.route('/')
-def home():
-    return render_template('home.html')
+with open('user2user_encoded.pkl', 'rb') as f:
+    user2user_encoded = pickle.load(f)
 
-@app.route('/recommend', methods=['POST'])
+with open('book2book_encoded.pkl', 'rb') as f:
+    book2book_encoded = pickle.load(f)
+
+with open('book_id_to_name.pkl', 'rb') as f:
+    book_id_to_name = pickle.load(f)
+
+
+def recommend_books(user_id, num_books=5):
+    # Encoding the user id
+    user_encoded = user2user_encoded[user_id]
+
+    # Getting the book ids in the encoding order
+    book_ids = list(book2book_encoded.keys())
+
+    # Repeating the user id to match the shape of book ids
+    user_array = np.array([user_encoded for _ in range(len(book_ids))])
+
+    # Making the prediction
+    pred_ratings = model.predict([user_array, np.array(book_ids)])
+
+    # Getting the indices of the top num_books ratings
+    top_indices = pred_ratings.flatten().argsort()[-num_books:][::-1]
+
+    # Returning the corresponding book names
+    return [book_id_to_name[book_ids[i]] for i in top_indices]
+
+
+@app.route('/recommend', methods=['GET'])
 def recommend():
-    data = request.json
-    user_id = data['user_id']
+    user_id = int(request.args.get('user_id'))
+    recommended_books = recommend_books(user_id)
 
-    # Get user's ratings
-    user_ratings = ratings[ratings['user_id'] == user_id]
+    return jsonify(recommended_books)
 
-    # Find books the user hasn't rated yet
-    unrated_books = ratings[~ratings['book_id'].isin(user_ratings['book_id'])]['book_id'].unique()
 
-    # Create dataset for prediction
-    user_id_arr = np.array([user_id for _ in range(len(unrated_books))])
-    book_id_arr = np.array(unrated_books)
-    predictions = model.predict([user_id_arr, book_id_arr])
-
-    # Create a dataframe of predicted ratings
-    predicted_ratings = pd.DataFrame({
-        'user_id': user_id_arr,
-        'book_id': book_id_arr,
-        'predicted_rating': predictions.flatten(),
-    })
-
-    # Get the top 5 book recommendations
-    recommended_books = predicted_ratings.sort_values(by='predicted_rating', ascending=False).head(5)
-
-    return jsonify(recommended_books.to_dict())
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
 
