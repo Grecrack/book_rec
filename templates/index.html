@@ -1,17 +1,31 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Book Recommendation</title>
+  <title>Book Recommendation System</title>
 </head>
 <body>
-    <form action="/recommend" method="post">
-        <label for="user_id">Enter your user ID:</label><br>
-        <input type="text" id="user_id" name="user_id"><br>
-        <input type="submit" value="Get Recommendations">
-    </form>
-    {% for book in books %}
-        <p>{{ book }}</p>
-    {% endfor %}
+  <h1>Welcome to the Book Recommendation System</h1>
+
+  <h2>New User</h2>
+  <form action="/new_user" method="GET">
+    <button type="submit">Create New User</button>
+  </form>
+
+  <h2>Train User</h2>
+  <form action="/train_user" method="POST">
+    <label for="user_id">User ID:</label>
+    <input type="text" name="user_id" required>
+    <button type="submit">Train User</button>
+  </form>
+
+  <h2>Recommend Books</h2>
+  <form action="/recommend" method="POST">
+    <label for="user_id">User ID:</label>
+    <input type="text" name="user_id" required>
+    <button type="submit">Recommend Books</button>
+  </form>
 </body>
 </html>
+
 

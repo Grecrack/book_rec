@@ -1,0 +1,13 @@
+<!-- rate_books.html -->
+<form action="/rate_books" method="POST">
+    <h2>Rate Books</h2>
+    <input type="hidden" name="user_id" value="{{ user_id }}">
+    {% for book in books %}
+      <div>
+        <p>{{ book.title }}</p>
+        <label>Rating:</label>
+        <input type="number" name="{{ book.id }}" min="1" max="5" required>
+      </div>
+    {% endfor %}
+    <button type="submit">Submit Ratings</button>
+  </form>
