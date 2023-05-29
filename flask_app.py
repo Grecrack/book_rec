@@ -8,15 +8,15 @@ import pickle
 app = Flask(__name__,template_folder='templates')
 
 # Load the model
-model = load_model('Data/mae_best_model.h5')
+model = load_model('data/mae_best_model.h5')
 
-with open('Data/processed/user2user_encoded.pkl', 'rb') as f:
+with open('data/processed/user2user_encoded.pkl', 'rb') as f:
     user2user_encoded = pickle.load(f)
 
-with open('Data/processed/book2book_encoded.pkl', 'rb') as f:
+with open('data/processed/book2book_encoded.pkl', 'rb') as f:
     book2book_encoded = pickle.load(f)
 
-with open('Data/processed/book_id_to_name.pkl', 'rb') as f:
+with open('data/processed/book_id_to_name.pkl', 'rb') as f:
     book_id_to_name = pickle.load(f)
 
 
