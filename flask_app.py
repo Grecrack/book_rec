@@ -1,21 +1,22 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
+
 from keras.models import load_model
 import numpy as np
 import pandas as pd
 import pickle
 
-app = Flask(__name__)
+app = Flask(__name__,template_folder='templates')
 
 # Load the model
-model = load_model('book/mae_best_model.h5')
+model = load_model('Data/mae_best_model.h5')
 
-with open('book/processed/user2user_encoded.pkl', 'rb') as f:
+with open('Data/processed/user2user_encoded.pkl', 'rb') as f:
     user2user_encoded = pickle.load(f)
 
-with open('book/processed/book2book_encoded.pkl', 'rb') as f:
+with open('Data/processed/book2book_encoded.pkl', 'rb') as f:
     book2book_encoded = pickle.load(f)
 
-with open('book/processed/book_id_to_name.pkl', 'rb') as f:
+with open('Data/processed/book_id_to_name.pkl', 'rb') as f:
     book_id_to_name = pickle.load(f)
 
 
@@ -40,12 +41,25 @@ def recommend_books(user_id, num_books=5):
     return [book_id_to_name[book_ids[i]] for i in top_indices]
 
 
-@app.route('/recommend', methods=['GET'])
-def recommend():
-    user_id = int(request.args.get('user_id'))
-    recommended_books = recommend_books(user_id)
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('index.html')
 
-    return jsonify(recommended_books)
+@app.route('/recommend', methods=['POST'])
+def recommend():
+    user_id = int(request.form.get('user_id'))
+    recommended_books = recommend_books(user_id)
+    return render_template('index.html', books=recommended_books)
+
+
+
+
+#@app.route('/recommend', methods=['GET'])
+#def recommend():
+#    user_id = int(request.args.get('user_id'))
+#    recommended_books = recommend_books(user_id)
+
+#    return jsonify(recommended_books)
 
 
 if __name__ == "__main__":
