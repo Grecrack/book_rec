@@ -107,8 +107,6 @@ def save_rating():
     book_title = request.form.get('book_title')
     rating = request.form.get('rating')
 
-    # Save the rating to the ratings.csv file or your desired storage
-
     return f"Rating {rating} saved for User {user_id} and Book {book_title}."
 
 
