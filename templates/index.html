@@ -13,10 +13,10 @@
   </form>
 
   <h2>Train User</h2>
-  <form action="/train_user" method="POST">
+  <form action="/train_user?user_id={{ user_id }}" method="post">
     <label for="user_id">User ID:</label>
-    <input type="text" name="user_id" required>
-    <button type="submit">Train User</button>
+    <input type="text" id="user_id" name="user_id">
+    <input type="submit" value="user_id">
   </form>
 
   <h2>Recommend Books</h2>
@@ -27,5 +27,3 @@
   </form>
 </body>
 </html>
-
-

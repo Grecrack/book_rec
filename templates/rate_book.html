@@ -1,0 +1,14 @@
+<!-- rate_book.html -->
+<form action="{{ url_for('save_rating', user_id=user_id, book_title=book_title) }}" method="post">
+  <label for="user_id">User ID:</label>
+  <span id="user_id">{{ user_id }}</span>
+  <br>
+  <label for="book_title">Book Title:</label>
+  <span id="book_title">{{ book_title }}</span>
+  <br>
+  <label for="rating">Rating:</label>
+  <input type="number" id="rating" name="rating" min="1" max="5" required>
+  <br>
+  <input type="submit" value="Submit">
+  <input type="submit" value="Skip" name="skip">
+</form>
