@@ -3,14 +3,16 @@ from keras.models import load_model
 import numpy as np
 import pandas as pd
 import pickle
+import csv
+import time
 
 app = Flask(__name__)
 
 
 # Load the model
-model = load_model('data/mae_best_model.h5')
-ratings = pd.read_csv('data/ratings.csv')
-books = pd.read_csv('data/books.csv')
+model = load_model('models/mae_best_model.h5')
+ratings = pd.read_csv('data/ratings_n.csv')
+books = pd.read_csv('data/books_n.csv')
 
 with open('data/processed/user2user_encoded.pkl', 'rb') as f:
     user2user_encoded = pickle.load(f)
@@ -64,9 +66,6 @@ def recommend_books(user_id, num_books=5):
     return recommended_books
 
 
-user_id=0
-
-
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -99,16 +98,44 @@ def train_user():
                 return 'No unrated books found for the user.'
 
     # Handle GET request
-    return render_template('index.html')
+    return render_template('rate_book.html', user_id=user_id, book_id=book_id, book_title=book_title)
+
+
 @app.route('/save_rating', methods=['POST'])
 def save_rating():
-    user_id = request.form.get('user_id')
-    book_id = request.form.get('book_id')
-    book_title = request.form.get('book_title')
-    rating = request.form.get('rating')
+    user_id_form = request.form.get('user_id')
+    book_id_form = request.form.get('book_id')
+    book_title_form = request.form.get('book_title')
+    rating_form = request.form.get('rating')
 
-    return f"Rating {rating} saved for User {user_id} and Book {book_title}."
+    # Read the existing csv file
+    ratings = pd.read_csv('data/ratings_n.csv')
+    books = pd.read_csv('data/books_n.csv')
+    # Check if the rating already exists
+    if (ratings['book_id'].isin([int(book_id_form)]) & ratings['user_id'].isin([int(user_id_form)])).any():
+        print('Rating already exists, update the existing rating')
+        old_rating = ratings.loc[(ratings['book_id'] == int(book_id_form)) & (ratings['user_id'] == int(user_id_form)), 'rating'].values[0]
+        ratings.loc[(ratings['book_id'] == int(book_id_form)) & (ratings['user_id'] == int(user_id_form)), 'rating'] = int(rating_form)
+        books.loc[books['id'] == int(book_id_form), 'average_rating'] = ratings.loc[ratings['book_id'] == int(book_id_form), 'rating'].mean()
+        books.loc[books['id'] == int(book_id_form), f'ratings_{rating_form}'] += 1
+        books.loc[books['id'] == int(book_id_form), f'ratings_{old_rating}'] -= 1
+    else:
+        # Rating doesn't exist, add a new rating
+        new_rating = pd.DataFrame({'book_id': [int(book_id_form)],'user_id': [int(user_id_form)],'rating': [int(rating_form)]})
+        ratings = pd.concat([ratings, new_rating], ignore_index=True)
+        # Update the ratings count and average rating in books.csv
+        books.loc[books['id'] == int(book_id_form), 'ratings_count'] += 1
+        books.loc[books['id'] == int(book_id_form), 'average_rating'] = ratings.loc[ratings['book_id'] == int(book_id_form), 'rating'].mean()
+        # Update the specific ratings column in books.csv
+        books.loc[books['id'] == int(book_id_form), f'ratings_{rating_form}'] += 1
+    
+    # Save the updated ratings DataFrame back to ratings.csv
+    ratings.to_csv('data/ratings_n.csv', index=False)
+    books.to_csv('data/books_n.csv', index=False)
 
+    
+    # Render the template with the message
+    return render_template('train.html', message=f"Rating {rating_form} saved for User {user_id_form} and Book {book_title_form}.",user_id=user_id_form, redirect=True)
 
 
 
@@ -125,24 +152,5 @@ def recommend():
     # Display the recommended books
     return render_template('recommended_books.html', books=recommended_books)
 
-
-
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-
-
-#@app.route('/', methods=['GET'])
-#def home():
-#    return render_template('index.html')
-
-#@app.route('/recommend', methods=['POST'])
-#def recommend():
-#    user_id = int(request.form.get('user_id'))
-#    recommended_books = recommend_books(user_id)
-#    return render_template('index.html', books=recommended_books)
-
-#if __name__ == "__main__":
-#    app.run(debug=True)
