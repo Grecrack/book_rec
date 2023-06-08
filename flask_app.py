@@ -8,27 +8,25 @@ from keras.models import Model
 from sklearn.model_selection import train_test_split
 from cryptography.fernet import Fernet
 from multiprocessing import Value
+from threading import Thread
 import numpy as np
 import pandas as pd
-import pickle, requests, re, ast, threading
+import requests, re, ast, threading
 
 app = Flask(__name__)
 
-with open('data/processed/user2user_encoded.pkl', 'rb') as f:
-    user2user_encoded = pickle.load(f)
-
-with open('data/processed/book2book_encoded.pkl', 'rb') as f:
-    book2book_encoded = pickle.load(f)
-
-with open('data/processed/book_id_to_name.pkl', 'rb') as f:
-    book_id_to_name = pickle.load(f)
-
-# Load the model
+# Load data
 model = load_model('models/mae_best_model.h5')
-ratings = pd.read_csv('data/ratings_n.csv')
-books = pd.read_csv('data/books_n.csv')
+ratings = pd.read_csv('data/ratings.csv')
+books = pd.read_csv('data/books.csv')
+book_id_to_name = pd.Series(books.title.values, index = books.index).to_dict()
 users = pd.read_csv('data/users.csv') 
-progress = Value('i', 0)  # Global variable to store progress
+user_ids = ratings['user_id'].unique().tolist()
+user2user_encoded = {x: i for i, x in enumerate(user_ids)}
+userencoded2user = {i: x for i, x in enumerate(user_ids)}
+book_ids = ratings['book_id'].unique().tolist()
+book2book_encoded = {x: i for i, x in enumerate(book_ids)}
+book_encoded2book = {i: x for i, x in enumerate(book_ids)}
 
 #API_key
 encrypted_api_key = ('gAAAAABkf6RzFZqS9TqL5q3VvsfjB5zu0zl2utJ76pX0naJckdr7ElrrD_Fr2VJBe1xday0VQst21TPNnWbScepbRP__FEyiIPF1ytYMh0uWtLlILrmnoO9uHvpjIC62ctkw1pFFoYoM')
@@ -43,15 +41,20 @@ def decrypt_value(encrypted_value, key):
     return decrypted_value.decode()
 
 def update_rating(user_id, book_id, rating):
-    global ratings
+    ratings=pd.read_csv('data/ratings.csv')
+    books=pd.read_csv('data/books.csv')
+    users=pd.read_csv('data/users.csv')
     # Check if the rating already exists
+    print('user ',user_id,' rated',book_id,'with',rating)
     if (ratings['book_id'].isin([int(book_id)]) & ratings['user_id'].isin([int(user_id)])).any():
-        print('Rating already exists, update the existing rating')
+        print('Rating already exists, updating the existing rating')
         old_rating = ratings.loc[(ratings['book_id'] == int(book_id)) & (ratings['user_id'] == int(user_id)), 'rating'].values[0]
         ratings.loc[(ratings['book_id'] == int(book_id)) & (ratings['user_id'] == int(user_id)), 'rating'] = int(rating)
         books.loc[books['id'] == int(book_id), 'average_rating'] = ratings.loc[ratings['book_id'] == int(book_id), 'rating'].mean()
         books.loc[books['id'] == int(book_id), f'ratings_{rating}'] += 1
         books.loc[books['id'] == int(book_id), f'ratings_{old_rating}'] -= 1
+        
+        print('rating',old_rating,'replaced with',rating)
     else:
         # Rating doesn't exist, add a new rating
         new_rating = pd.DataFrame({'book_id': [int(book_id)],'user_id': [int(user_id)],'rating': [int(rating)]})
@@ -61,16 +64,19 @@ def update_rating(user_id, book_id, rating):
         books.loc[books['id'] == int(book_id), 'average_rating'] = ratings.loc[ratings['book_id'] == int(book_id), 'rating'].mean()
         # Update the specific ratings column in books.csv
         books.loc[books['id'] == int(book_id), f'ratings_{rating}'] += 1
+        users.loc[ratings['user_id'] == int(user_id), f'rating_count'] += 1
 
     # Save the updated ratings DataFrame back to ratings.csv
-    ratings.to_csv('data/ratings_n.csv', index=False)
-    books.to_csv('data/books_n.csv', index=False)
-    
+    ratings.to_csv('data/ratings.csv', index=False)
+    books.to_csv('data/books.csv', index=False)
+    print('update rating.csv and book.csv')
     return 
 
 def generate_new_user_id():
     # Generate a new user ID
     new_user_id = max(ratings['user_id']) + 1  # Assuming 'ratings' is your ratings dataset
+    print('create new user')
+    print('new user id', new_user_id)
     return new_user_id
 
 def get_unrated_books(user_id):
@@ -87,14 +93,13 @@ def sort_books_by_rating(books):
     return sorted_books.index.tolist()
 
 def recommend_books(user_id, num_books=5):
-    # Encoding the user id if it exists in the mapping
-    if user_id in user2user_encoded:
-        user_encoded = user2user_encoded[user_id]
-    else:
-        # Handle the case where the user ID is not present in the mapping
-        # You can return an empty list or provide a default recommendation in such cases
-        return []
-
+    model = load_model('models/mae_best_model.h5')
+    ratings=pd.read_csv('data/ratings.csv')
+    user_ids = ratings['user_id'].unique().tolist()
+    user2user_encoded = {x: i for i, x in enumerate(user_ids)}
+    book_ids = ratings['book_id'].unique().tolist()
+    book2book_encoded = {x: i for i, x in enumerate(book_ids)}
+    user_encoded = user2user_encoded[user_id]
     # Getting the book ids in the encoding order
     book_ids = list(book2book_encoded.keys())
     book_ids = np.array(book_ids) - 1
@@ -120,7 +125,7 @@ def transform_to_search_engine_friendly(title):
 
     # Convert to lowercase
     title = title.lower()
-
+    print(title)
     return title
 
 def give_rating(user_id):
@@ -130,43 +135,43 @@ def give_rating(user_id):
     book_id = top_10_percent.sample()['id'].values[0]
     book_title = books.loc[books['id'] == book_id, 'title'].values[0]
     image_url = books.loc[books['id'] == book_id, 'image_url'].values[0]
+    print(book_id, book_title, image_url)
     return render_template('rate_book.html', user_id=user_id, book_id=book_id, book_title=book_title, image_url=image_url)
 
 def retrain_model(ratings, user2user_encoded, book2book_encoded):
+    user_ids = ratings['user_id'].unique().tolist()
+    user2user_encoded = {x: i for i, x in enumerate(user_ids)}
+    book_ids = ratings['book_id'].unique().tolist()
+    book2book_encoded = {x: i for i, x in enumerate(book_ids)}
+
+
+   # Load pre-trained model
+    model = load_model('../models/mae_best_model.h5')
+
+    # Continue preparing the data and split into train and test sets
+    user_ids = ratings['user_id'].unique().tolist()
+    user2user_encoded = {x: i for i, x in enumerate(user_ids)}
+    book_ids = ratings['book_id'].unique().tolist()
+    book2book_encoded = {x: i for i, x in enumerate(book_ids)}
+
     ratings['user'] = ratings['user_id'].map(user2user_encoded)
     ratings['book'] = ratings['book_id'].map(book2book_encoded)
+
     train, test = train_test_split(ratings, test_size=0.2, random_state=42)
 
-    num_users = len(user2user_encoded)
-    num_books = len(book2book_encoded)
-    embedding_size = 10
-
-    user_input = Input(shape=[1])
-    user_embedding = Embedding(num_users, embedding_size)(user_input)
-    user_vec = Flatten()(user_embedding)
-
-    book_input = Input(shape=[1])
-    book_embedding = Embedding(num_books, embedding_size)(book_input)
-    book_vec = Flatten()(book_embedding)
-
-    product = Dot(axes=1)([book_vec, user_vec])
-
-    model = Model(inputs=[user_input, book_input], outputs=product)
-    mae_checkpoint_path = '../Data/mae_best_model.h5'
+    # Continue with model configuration
+    mae_checkpoint_path = 'models/mae_best_model.h5'
 
     # Define a callback for model checkpointing
     mae_checkpoint = ModelCheckpoint(mae_checkpoint_path, monitor='val_loss', save_best_only=True, verbose=1)
 
-    model.compile(loss=MeanAbsoluteError(), optimizer=Adam())
-    print('loss function=MeanAbsoluteError()')
-    print('optimizer=Adam()')
-    print('batch_size=8')
+    # Continue training
+    model.fit(x=[train.user.values, train.book.values], y=train.rating.values,
+          batch_size=64, epochs=1, verbose=1,
+          validation_data=([test.user.values, test.book.values], test.rating.values),
+          callbacks=[mae_checkpoint])
 
-    history = model.fit(x=[train.user.values, train.book.values], y=train.rating.values,
-                        batch_size=64, epochs=1, verbose=1,
-                        validation_data=([test.user.values, test.book.values], test.rating.values),
-                        callbacks=[mae_checkpoint])
-
+    model.save("../models/mae_best_model.h5")
     print("Model update completed.")
 
 def create_user():
@@ -185,6 +190,8 @@ def create_user():
     # Concatenate the new user DataFrame with the existing users DataFrame
     users = pd.concat([users, new_user], ignore_index=True)
     
+    users.loc[users['user_id'] == int(new_user_id), f'rating_count'] = 0
+
     # Save the updated users DataFrame to the users.csv file
     users.to_csv('data/users.csv', index=False)
     
@@ -211,6 +218,7 @@ def train_user():
         return give_rating(user_id)
 
     elif user_id:
+        print('didnt find any raiting for that user')
         return give_rating(user_id)
     
 @app.route('/recommend', methods=['POST'])
@@ -224,12 +232,10 @@ def recommend():
     # Display the recommended books
     return render_template('recommended_books.html', books=recommended_books)
 
-from threading import Thread
-
 @app.route('/update_model', methods=['POST'])
 def update_model():
     # get your data and encoding maps
-    ratings=pd.read_csv('data/ratings_n.csv')
+    ratings=pd.read_csv('data/ratings.csv')
     user_ids = ratings['user_id'].unique().tolist()
     user2user_encoded = {x: i for i, x in enumerate(user_ids)}
     book_ids = ratings['book_id'].unique().tolist()
@@ -237,10 +243,6 @@ def update_model():
     Thread(target=retrain_model, args=(ratings, user2user_encoded, book2book_encoded)).start()
 
     return 'Model update started', 202
-
-
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)
