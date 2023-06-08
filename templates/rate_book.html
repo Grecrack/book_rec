@@ -71,6 +71,15 @@
           </form>
         </div>
       </form>
+      <button onclick="startTraining()">Start Model Training</button>
+      <script>
+      function startTraining() {
+        fetch('/update_model', {method: 'POST'})
+        .then(response => response.text())
+        .then(ratings => alert(ratings));
+      }
+      </script>
+      </body>
     </div>
     <div class="book-image">
       <img src="{{ image_url }}" alt="Book Cover">

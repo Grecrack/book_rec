@@ -1,9 +1,17 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session
 from keras.models import load_model
+from keras.optimizers import Adam
+from keras.losses import MeanAbsoluteError
+from keras.callbacks import ModelCheckpoint
+from keras.layers import Input, Embedding, Flatten, Dot
+from keras.models import Model
+from sklearn.model_selection import train_test_split
 from cryptography.fernet import Fernet
+from multiprocessing import Value
 import numpy as np
 import pandas as pd
-import pickle, requests, re, ast
+import pickle, requests, re, ast, threading
+
 app = Flask(__name__)
 
 with open('data/processed/user2user_encoded.pkl', 'rb') as f:
@@ -18,7 +26,9 @@ with open('data/processed/book_id_to_name.pkl', 'rb') as f:
 # Load the model
 model = load_model('models/mae_best_model.h5')
 ratings = pd.read_csv('data/ratings_n.csv')
-books = pd.read_csv('data/books_n.csv') 
+books = pd.read_csv('data/books_n.csv')
+users = pd.read_csv('data/users.csv') 
+progress = Value('i', 0)  # Global variable to store progress
 
 #API_key
 encrypted_api_key = ('gAAAAABkf6RzFZqS9TqL5q3VvsfjB5zu0zl2utJ76pX0naJckdr7ElrrD_Fr2VJBe1xday0VQst21TPNnWbScepbRP__FEyiIPF1ytYMh0uWtLlILrmnoO9uHvpjIC62ctkw1pFFoYoM')
@@ -77,8 +87,13 @@ def sort_books_by_rating(books):
     return sorted_books.index.tolist()
 
 def recommend_books(user_id, num_books=5):
-    # Encoding the user id
-    user_encoded = user2user_encoded[user_id]
+    # Encoding the user id if it exists in the mapping
+    if user_id in user2user_encoded:
+        user_encoded = user2user_encoded[user_id]
+    else:
+        # Handle the case where the user ID is not present in the mapping
+        # You can return an empty list or provide a default recommendation in such cases
+        return []
 
     # Getting the book ids in the encoding order
     book_ids = list(book2book_encoded.keys())
@@ -114,16 +129,68 @@ def give_rating(user_id):
     top_10_percent = sorted_books.head(int(len(sorted_books) * 0.1))
     book_id = top_10_percent.sample()['id'].values[0]
     book_title = books.loc[books['id'] == book_id, 'title'].values[0]
-    search_title = transform_to_search_engine_friendly(book_title)
-    search_term = f"{search_title}+cover"
-    api_key = decrypt_value(encrypted_api_key, key)
-    search_engine_id = decrypt_value(encrypted_search_engine_id, key)
-    search_url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx={search_engine_id}&q={search_term}"
-    response = requests.get(search_url)
-    search_results = response.json()
-    first_item = search_results["items"][0]
-    image_url = first_item["pagemap"]["scraped"][0]["image_link"]
+    image_url = books.loc[books['id'] == book_id, 'image_url'].values[0]
     return render_template('rate_book.html', user_id=user_id, book_id=book_id, book_title=book_title, image_url=image_url)
+
+def retrain_model(ratings, user2user_encoded, book2book_encoded):
+    ratings['user'] = ratings['user_id'].map(user2user_encoded)
+    ratings['book'] = ratings['book_id'].map(book2book_encoded)
+    train, test = train_test_split(ratings, test_size=0.2, random_state=42)
+
+    num_users = len(user2user_encoded)
+    num_books = len(book2book_encoded)
+    embedding_size = 10
+
+    user_input = Input(shape=[1])
+    user_embedding = Embedding(num_users, embedding_size)(user_input)
+    user_vec = Flatten()(user_embedding)
+
+    book_input = Input(shape=[1])
+    book_embedding = Embedding(num_books, embedding_size)(book_input)
+    book_vec = Flatten()(book_embedding)
+
+    product = Dot(axes=1)([book_vec, user_vec])
+
+    model = Model(inputs=[user_input, book_input], outputs=product)
+    mae_checkpoint_path = '../Data/mae_best_model.h5'
+
+    # Define a callback for model checkpointing
+    mae_checkpoint = ModelCheckpoint(mae_checkpoint_path, monitor='val_loss', save_best_only=True, verbose=1)
+
+    model.compile(loss=MeanAbsoluteError(), optimizer=Adam())
+    print('loss function=MeanAbsoluteError()')
+    print('optimizer=Adam()')
+    print('batch_size=8')
+
+    history = model.fit(x=[train.user.values, train.book.values], y=train.rating.values,
+                        batch_size=64, epochs=1, verbose=1,
+                        validation_data=([test.user.values, test.book.values], test.rating.values),
+                        callbacks=[mae_checkpoint])
+
+    print("Model update completed.")
+
+def create_user():
+    # Load the users.csv file
+    users = pd.read_csv('data/users.csv')
+    
+    # Get the last user ID
+    last_user_id = users['user_id'].max()
+    
+    # Generate a new user ID by incrementing the last user ID
+    new_user_id = last_user_id + 1
+    
+    # Create a new user DataFrame
+    new_user = pd.DataFrame({'user_id': [new_user_id]})
+    
+    # Concatenate the new user DataFrame with the existing users DataFrame
+    users = pd.concat([users, new_user], ignore_index=True)
+    
+    # Save the updated users DataFrame to the users.csv file
+    users.to_csv('data/users.csv', index=False)
+    
+    # Return the new user ID as a response to the user
+    return new_user_id
+
 
 
 @app.route('/')
@@ -132,9 +199,7 @@ def home():
 
 @app.route('/new_user', methods=['GET'])
 def new_user():
-    # Create a new user ID and share it with the user
-    new_user_id = generate_new_user_id()
-    return render_template('index.html', message=f"New user ID created: {new_user_id}")
+    return f"New user created with ID: {create_user()}"
 
 @app.route('/train_user', methods=['GET', 'POST'])
 def train_user():
@@ -158,6 +223,24 @@ def recommend():
 
     # Display the recommended books
     return render_template('recommended_books.html', books=recommended_books)
+
+from threading import Thread
+
+@app.route('/update_model', methods=['POST'])
+def update_model():
+    # get your data and encoding maps
+    ratings=pd.read_csv('data/ratings_n.csv')
+    user_ids = ratings['user_id'].unique().tolist()
+    user2user_encoded = {x: i for i, x in enumerate(user_ids)}
+    book_ids = ratings['book_id'].unique().tolist()
+    book2book_encoded = {x: i for i, x in enumerate(book_ids)}
+    Thread(target=retrain_model, args=(ratings, user2user_encoded, book2book_encoded)).start()
+
+    return 'Model update started', 202
+
+
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
