@@ -47,7 +47,7 @@
 <h1>Rate a Book</h1>
 
 {% if book_id %}
-  <h3>User ID: {{ user_id }}</h3>
+  <h3>User ID: {{ user_id }} {{ rating_count }}</h3>
   <div class="book-container">
     <div class="book-details">
       <h3>Title: {{ book_title }}</h3>
@@ -55,6 +55,7 @@
         <input type="hidden" name="user_id" value="{{ user_id }}">
         <input type="hidden" name="book_id" value="{{ book_id }}">
         <input type="hidden" name="book_title" value="{{ book_title }}">
+        <input type="hidden" name="rating_count" value="{{ rating_count }}">
         <label for="rating">Rating:</label>
         <ul class="rating-list">
           <li><input type="radio" name="rating" id="rating1" value="1"><label for="rating1">1</label></li>
