@@ -1,8 +1,60 @@
-<!-- recommended_books.html -->
-<h2>Recommended Books</h2>
-<ul>
-  {% for book in books %}
-    <li>{{ book }}</li>
-  {% endfor %}
-</ul>
-
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Recommended Books</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+    
+    ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 20px 0;
+    }
+    
+    li {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+    }
+    
+    li img {
+      width: 100px;
+      height: auto;
+      margin-right: 10px;
+    }
+    
+    .book-title {
+      font-weight: bold;
+    }
+    
+    .go-back-link {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Recommended Books</h2>
+  <ul>
+    {% for book in books %}
+      <li>
+        <img src="{{ book.image }}" alt="Book Cover">
+        <div>
+          <a href="{{ book.amazon_link }}" target="_blank" class="book-title">{{ book.title }}</a>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+  
+  <a href="/" class="go-back-link">Go Back</a>
+</body>
+</html>

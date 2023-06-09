@@ -1,8 +1,8 @@
-from flask import Flask, request, jsonify, render_template, session
+from flask import Flask, request, jsonify, render_template, session, flash, url_for, redirect, Response
 from keras.models import load_model
 from keras.optimizers import Adam
 from keras.losses import MeanAbsoluteError
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, Callback
 from keras.layers import Input, Embedding, Flatten, Dot
 from keras.models import Model
 from sklearn.model_selection import train_test_split
@@ -11,10 +11,13 @@ from multiprocessing import Value
 from threading import Thread
 import numpy as np
 import pandas as pd
+import os as time
+from pprint import pprint
 import requests, re, ast, threading
 
 app = Flask(__name__)
-
+app.secret_key = 'mysecretkey123'
+training_completed = False
 # Load data
 model = load_model('models/mae_best_model.h5')
 ratings = pd.read_csv('data/ratings.csv')
@@ -67,8 +70,10 @@ def update_rating(user_id, book_id, rating):
         users.loc[ratings['user_id'] == int(user_id), f'rating_count'] += 1
 
     # Save the updated ratings DataFrame back to ratings.csv
+    users.loc[users['user_id'] == int(user_id), 'new_data'] = True
     ratings.to_csv('data/ratings.csv', index=False)
     books.to_csv('data/books.csv', index=False)
+    users.to_csv('data/users.csv', index=False)
     print('update rating.csv and book.csv')
     return 
 
@@ -93,28 +98,51 @@ def sort_books_by_rating(books):
     return sorted_books.index.tolist()
 
 def recommend_books(user_id, num_books=5):
-    model = load_model('models/mae_best_model.h5')
-    ratings=pd.read_csv('data/ratings.csv')
-    user_ids = ratings['user_id'].unique().tolist()
-    user2user_encoded = {x: i for i, x in enumerate(user_ids)}
-    book_ids = ratings['book_id'].unique().tolist()
-    book2book_encoded = {x: i for i, x in enumerate(book_ids)}
-    user_encoded = user2user_encoded[user_id]
-    # Getting the book ids in the encoding order
-    book_ids = list(book2book_encoded.keys())
-    book_ids = np.array(book_ids) - 1
-    # Repeating the user id to match the shape of book ids
-    user_array = np.array([user_encoded for _ in range(len(book_ids))])
+    try:
+        if users.loc[users['user_id'] == user_id, 'new_data'].any():
+            # Perform an action when new_data is True
+            print("Performing action for users with new_data=True")
+            # Add your code here for the specific action you want to perform
+        
+        else:
+            model = load_model('models/mae_best_model.h5')
+            ratings=pd.read_csv('data/ratings.csv')
+            books=pd.read_csv('data/books.csv')
+            user_ids = ratings['user_id'].unique().tolist()
+            user2user_encoded = {x: i for i, x in enumerate(user_ids)}
+            book_ids = ratings['book_id'].unique().tolist()
+            book2book_encoded = {x: i for i, x in enumerate(book_ids)}
+            user_encoded = user2user_encoded[user_id]
+            # Getting the book ids in the encoding order
+            book_ids = list(book2book_encoded.keys())
+            book_ids = np.array(book_ids) - 1
+            # Repeating the user id to match the shape of book ids
+            user_array = np.array([user_encoded for _ in range(len(book_ids))])
 
-    # Making the prediction
-    pred_ratings = model.predict([user_array, np.array(book_ids)])
+            # Making the prediction
+            pred_ratings = model.predict([user_array, np.array(book_ids)])
 
-    # Getting the indices of the top num_books ratings
-    top_indices = pred_ratings.flatten().argsort()[-num_books:][::-1]
+            # Getting the indices of the top num_books ratings
+            top_indices = pred_ratings.flatten().argsort()[-num_books:][::-1]
 
-    # Returning the corresponding book names
-    recommended_books = [book_id_to_name[book_ids[i] + 1] for i in top_indices]
-    return recommended_books
+            # Returning the corresponding book names
+            recommended_books = []
+            for i in top_indices:
+                book_id = book_ids[i] + 1
+                book_title = book_id_to_name[book_id]
+                book_image_url = books.loc[books['title'] == book_title, 'image_url'].values[0]
+                amazon_link = f"https://www.amazon.com/"
+                recommended_books.append({
+                    "title": book_title,
+                    "image": book_image_url,
+                    "amazon_link": amazon_link
+                })
+            pprint(recommended_books)
+            return recommended_books
+    except KeyError:
+        return None
+
+
 
 def transform_to_search_engine_friendly(title):
     # Remove special characters and spaces
@@ -138,15 +166,15 @@ def give_rating(user_id):
     print(book_id, book_title, image_url)
     return render_template('rate_book.html', user_id=user_id, book_id=book_id, book_title=book_title, image_url=image_url)
 
+
 def retrain_model(ratings, user2user_encoded, book2book_encoded):
     user_ids = ratings['user_id'].unique().tolist()
     user2user_encoded = {x: i for i, x in enumerate(user_ids)}
     book_ids = ratings['book_id'].unique().tolist()
     book2book_encoded = {x: i for i, x in enumerate(book_ids)}
 
-
    # Load pre-trained model
-    model = load_model('../models/mae_best_model.h5')
+    model = load_model('models/mae_best_model.h5')
 
     # Continue preparing the data and split into train and test sets
     user_ids = ratings['user_id'].unique().tolist()
@@ -171,8 +199,13 @@ def retrain_model(ratings, user2user_encoded, book2book_encoded):
           validation_data=([test.user.values, test.book.values], test.rating.values),
           callbacks=[mae_checkpoint])
 
-    model.save("../models/mae_best_model.h5")
+    model.save("models/mae_best_model.h5")
     print("Model update completed.")
+    # Set 'new_data' to False for every user
+    users['new_data'] = False
+    # Save the updated users DataFrame back to the 'users.csv' file
+    users.to_csv('data/users.csv', index=False)
+    print("Updated users.csv")
 
 def create_user():
     # Load the users.csv file
@@ -213,13 +246,17 @@ def train_user():
     user_id = request.form.get('user_id')
     book_id = request.form.get('book_id')
     rating = request.form.get('rating')
-    if user_id and rating:
-        update_rating(user_id,book_id,rating)
-        return give_rating(user_id)
+    users = pd.read_csv('data/users.csv')
+    if user_id in users['user_id'].values:
+        if user_id and rating:
+            update_rating(user_id,book_id,rating)
+            return give_rating(user_id)
 
-    elif user_id:
-        print('didnt find any raiting for that user')
-        return give_rating(user_id)
+        elif user_id:
+            print('didnt find any raiting for that user')
+            return give_rating(user_id)
+    else:
+        return render_template('index.html', error=f"User ID {user_id} not found.")   
     
 @app.route('/recommend', methods=['POST'])
 def recommend():
@@ -228,21 +265,40 @@ def recommend():
 
     # Get the recommended books for the user
     recommended_books = recommend_books(user_id)
+    if recommended_books is None:
+        error_message = f"User ID {user_id} not found."
+        return render_template('index.html', error=error_message)
 
-    # Display the recommended books
-    return render_template('recommended_books.html', books=recommended_books)
+    return render_template('recommended_books.html', books=recommended_books)   
 
 @app.route('/update_model', methods=['POST'])
 def update_model():
     # get your data and encoding maps
-    ratings=pd.read_csv('data/ratings.csv')
+    global training_completed
+    training_completed = False
+    ratings = pd.read_csv('data/ratings.csv')
     user_ids = ratings['user_id'].unique().tolist()
     user2user_encoded = {x: i for i, x in enumerate(user_ids)}
     book_ids = ratings['book_id'].unique().tolist()
     book2book_encoded = {x: i for i, x in enumerate(book_ids)}
-    Thread(target=retrain_model, args=(ratings, user2user_encoded, book2book_encoded)).start()
+    retrain_model(ratings, user2user_encoded, book2book_encoded)
+    training_completed = True
 
-    return 'Model update started', 202
+    return 'Model update completed', 202
+
+def progress_updates():
+    def generate():
+        progress = 0
+
+        while not training_completed:
+            yield f"data: {progress}\n\n"
+            time.sleep(0.1)  # Delay between progress updates
+
+        # Training completed, set progress to 100
+        progress = 100
+        yield f"data: {progress}\n\n"
+
+    return Response(generate(), mimetype='text/event-stream')
 
 if __name__ == "__main__":
     app.run(debug=True)

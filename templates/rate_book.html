@@ -1,93 +1,182 @@
-<!-- rate_book.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
 
-<style>
-  .book-container {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-  }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
 
-  .book-details {
-    margin-left: 20px;
-  }
+    .book-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
 
-  .book-image {
-    text-align: right;
-    margin-left: 20px; /* Add margin to create space */
-  }
+    .book-details {
+      margin-left: 20px;
+    }
 
-  .book-image img {
-    width: 200px; /* Adjust the width as desired */
-    height: auto; /* Maintain aspect ratio */
-  }
+    .book-image {
+      text-align: right;
+    }
 
-  .rating-list {
-    display: flex;
-    flex-direction: row;
-    list-style-type: none;
-    padding: 0;
-    margin: 10px 0;
-  }
+    .book-image img {
+      max-width: 200px;
+      height: auto;
+    }
 
-  .rating-list li {
-    margin-right: 10px;
-  }
-  
-  .button-container {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 10px;
-  }
-  
-  .button-container button {
-    margin-left: 10px;
-  }
-</style>
+    .rating-list {
+      display: flex;
+      flex-direction: row;
+      list-style-type: none;
+      padding: 0;
+      margin: 10px 0;
+    }
 
-<h1>Rate a Book</h1>
+    .rating-list li {
+      margin-right: 10px;
+    }
+    
+    .button-container {
+      display: flex;
+      justify-content: flex-start; /* Updated */
+      margin-top: 10px;
+    }
+    
+    .button-container button {
+      margin-left: 10px;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      background-color: #f1f1f1;
+      border-radius: 4px;
+      padding: 2px;
+    }
+    
+    .progress-bar-inner {
+      height: 20px;
+      border-radius: 4px;
+      background-color: #2196F3;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Rate a Book</h1>
 
-{% if book_id %}
-  <h3>User ID: {{ user_id }} {{ rating_count }}</h3>
-  <div class="book-container">
-    <div class="book-details">
-      <h3>Title: {{ book_title }}</h3>
-      <form action="/train_user" method="POST">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <input type="hidden" name="book_id" value="{{ book_id }}">
-        <input type="hidden" name="book_title" value="{{ book_title }}">
-        <input type="hidden" name="rating_count" value="{{ rating_count }}">
-        <label for="rating">Rating:</label>
-        <ul class="rating-list">
-          <li><input type="radio" name="rating" id="rating1" value="1"><label for="rating1">1</label></li>
-          <li><input type="radio" name="rating" id="rating2" value="2"><label for="rating2">2</label></li>
-          <li><input type="radio" name="rating" id="rating3" value="3"><label for="rating3">3</label></li>
-          <li><input type="radio" name="rating" id="rating4" value="4"><label for="rating4">4</label></li>
-          <li><input type="radio" name="rating" id="rating5" value="5"><label for="rating5">5</label></li>
-        </ul>
-        <div class="button-container">
-          <button type="submit">Submit</button>
-          <form action="/train_user" method="POST">
+    {% if book_id %}
+      <h3>User ID: {{ user_id }}</h3>
+      <div class="book-container">
+        <div class="book-details">
+          <h3>Title: {{ book_title }}</h3>
+          <form id="rating-form" action="/train_user" method="POST">
             <input type="hidden" name="user_id" value="{{ user_id }}">
-            <button type="submit">Skip</button>
+            <input type="hidden" name="book_id" value="{{ book_id }}">
+            <input type="hidden" name="book_title" value="{{ book_title }}">
+            <input type="hidden" name="rating_count" value="{{ rating_count }}">
+            <label for="rating">Rating:</label>
+            <ul class="rating-list">
+              <li><input type="radio" name="rating" id="rating1" value="1"><label for="rating1">1</label></li>
+              <li><input type="radio" name="rating" id="rating2" value="2"><label for="rating2">2</label></li>
+              <li><input type="radio" name="rating" id="rating3" value="3"><label for="rating3">3</label></li>
+              <li><input type="radio" name="rating" id="rating4" value="4"><label for="rating4">4</label></li>
+              <li><input type="radio" name="rating" id="rating5" value="5"><label for="rating5">5</label></li>
+            </ul>
+            <div class="button-container">
+              <button type="submit">Submit</button>
+              <button type="button" onclick="startTraining()">Start Model Training</button>
+              <form action="/train_user" method="POST">
+                <input type="hidden" name="user_id" value="{{ user_id }}">
+                <button type="submit">Skip</button>
+              </form>
+            </div>
           </form>
         </div>
-      </form>
-      <button onclick="startTraining()">Start Model Training</button>
+        <div class="book-image">
+          <img src="{{ image_url }}" alt="Book Cover">
+        </div>
+      </div>
+      <br>
+      <a href="/" class="btn btn-primary">Go Back</a>
+
+      <div class="progress-bar">
+        <div class="progress-bar-inner" id="progress-bar"></div>
+      </div>
+      <p id="completion-message"></p>
       <script>
-      function startTraining() {
-        fetch('/update_model', {method: 'POST'})
-        .then(response => response.text())
-        .then(ratings => alert(ratings));
-      }
+        function startTraining() {
+          var progressBar = document.getElementById("progress-bar");
+          var completionMessage = document.getElementById("completion-message");
+          var startTime = Date.now();
+          var currentTime = Date.now();
+          var trainingTime = 40000; // 40 seconds
+          var trainingCompleted = false; // Flag to track training completion
+
+          // Prevent the default form submission
+          document.getElementById("rating-form").addEventListener("submit", function(event) {
+            event.preventDefault();
+          });
+      
+          fetch('/update_model', { method: 'POST' })
+            .then(response => {
+              if (response.ok) {
+                trainingCompleted = true; // Set the flag to true if the request is successful
+              }
+              return response.text();
+            })
+            .then(ratings => {
+              alert(ratings);
+            });
+      
+          function updateProgress() {
+            var elapsedTime = currentTime - startTime;
+            var progress = Math.min((elapsedTime / trainingTime) * 100, 100); // Limit progress to 100%
+      
+            progressBar.style.width = progress + "%";
+      
+            if (trainingCompleted) {
+              progressBar.style.width = "100%"; // Set width to 100% if training is completed
+              clearInterval(progressInterval); // Stop updating progress
+              completionMessage.innerText = "Model Training Completed";
+            }
+          }
+      
+          updateProgress(); // Initial update
+      
+          var progressInterval = setInterval(function () {
+            currentTime = Date.now();
+            updateProgress();
+      
+            if (trainingCompleted) {
+              progressBar.style.width = "100%"; // Set width to 100% if training is completed
+              clearInterval(progressInterval); // Stop updating progress
+              completionMessage.innerText = "Model Training Completed";
+            } else if (currentTime - startTime >= trainingTime) {
+              progressBar.style.width = "100%"; // Set width to 100% after 60 seconds
+            }
+          }, 100); // Update progress every 100 milliseconds
+        }
       </script>
-      </body>
-    </div>
-    <div class="book-image">
-      <img src="{{ image_url }}" alt="Book Cover">
-    </div>
+    {% else %}
+      <p>No unrated books found for the user.</p>
+    {% endif %}
   </div>
-  <br>
-  <a href="/" class="btn btn-primary">Go Back</a>
-{% else %}
-  <p>No unrated books found for the user.</p>
-{% endif %}
+</body>
+</html>
