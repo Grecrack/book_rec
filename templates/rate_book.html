@@ -17,6 +17,8 @@
       max-width: 600px;
       width: 100%;
       display: flex;
+      border: 5px solid black;
+      padding: 20px;
       flex-direction: column;
     }
 
@@ -28,6 +30,10 @@
 
     .book-details {
       margin-left: 20px;
+    }
+
+    .Rate-a-book {
+      text-align: center;
     }
 
     .book-image {
@@ -79,10 +85,10 @@
 </head>
 <body>
   <div class="container">
-    <h1>Rate a Book</h1>
-
-    {% if book_id %}
-      <h3>User ID: {{ user_id }}</h3>
+    <div class="Rate-a-book">
+     <h1>Rate a Book</h1>
+    </div>
+    <h3>User ID: {{ user_id }}</h3>
       <div class="book-container">
         <div class="book-details">
           <h3>Title: {{ book_title }}</h3>
@@ -174,9 +180,6 @@
           }, 100); // Update progress every 100 milliseconds
         }
       </script>
-    {% else %}
-      <p>No unrated books found for the user.</p>
-    {% endif %}
   </div>
 </body>
 </html>

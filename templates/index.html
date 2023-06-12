@@ -15,11 +15,39 @@
     }
 
     .container {
-      text-align: center;
+    text-align: center;
+    border: 5px solid black;
+    padding: 20px;
     }
 
     form {
       margin-top: 20px;
+    }
+
+    .error-message {
+      color: black;
+      margin-top: 10px;
+    }
+
+    .option {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .option-item {
+      margin: 0 10px;
+    }
+
+    .option-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    .option-row .option-item {
+      margin: 0 10px;
     }
   </style>
 </head>
@@ -27,29 +55,49 @@
   <div class="container">
     <h1>Welcome to the Book Recommendation System</h1>
 
-    <h2>New User</h2>
-    <form action="/new_user" method="GET">
-      <button type="submit">Create New User</button>
-    </form>
+    <div class="option-row">
+      <div class="option-item">
+        <h2>Create User</h2>
+        <form action="/new_user" method="GET">
+          <button type="submit">Create New User</button>
+        </form>
+      </div>
+    </div>
 
-    <h2>Train User</h2>
-    <form action="/train_user" method="post">
-      <label for="user_id">User ID:</label>
-      <input type="text" id="user_id" name="user_id">
-      <input type="submit" value="Submit">
-    </form>
+    <div class="option-row">
+      <div class="option-item">
+        <h2>Train User</h2>
+        <form action="/train_user" method="post">
+          <label for="user_id">User ID:</label>
+          <input type="text" id="user_id" name="user_id">
+          <input type="submit" value="Submit">
+        </form>
+      </div>
 
-    <h2>Recommend Books</h2>
-    <form action="/recommend" method="POST">
-      <label for="user_id">User ID:</label>
-      <input type="text" name="user_id" required>
-      <button type="submit">Recommend Books</button>
-    </form>
+      <div class="option-item">
+        <h2>View Profile</h2>
+        <form action="/view_profile" method="POST">
+          <label for="user_id">User ID:</label>
+          <input type="text" name="user_id" required>
+          <button type="submit">View Profile</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="option-row">
+      <div class="option-item">
+        <h2>Recommend Books</h2>
+        <form action="/recommend" method="POST">
+          <label for="user_id">User ID:</label>
+          <input type="text" name="user_id" required>
+          <button type="submit">Recommend Books</button>
+        </form>
+      </div>
+    </div>
+
     {% if error %}
     <p class="error-message">{{ error }}</p>
     {% endif %}
   </div>
-
-  
 </body>
 </html>

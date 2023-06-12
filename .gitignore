@@ -2,4 +2,5 @@
 .venv/
 testing.ipynb
 test/
-key
+api_key
+search_engine_id

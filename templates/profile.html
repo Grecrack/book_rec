@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>User Profile</title>
+  <style>
+    /* Your custom CSS styles here */
+    /* Example styles for the user profile */
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 20px;
+    }
+
+    .profile-container {
+      margin-top: 20px;
+    }
+
+    .rating-list {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    .rating-list li {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>User Profile</h1>
+
+  <div class="profile-container">
+    <h2>User ID: {{ user_id }}</h2>
+
+    <h3>Ratings:</h3>
+    <ul class="rating-list">
+      {% for rating in ratings %}
+      <li>{{ rating.title }} - {{ rating.rating }}</li>
+      {% endfor %}
+    </ul>
+
+    <p>Rating Count: {{ rating_count }}</p>
+    <a href="/" class="go-back-link">Go Back</a>
+  </div>
+</body>
+</html>
