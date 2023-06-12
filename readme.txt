@@ -1,4 +1,3 @@
-```
 # Book Recommendation System
 
 This repository contains the code for a Book Recommendation System. The system allows users to rate books, receive personalized book recommendations, and view their profile and ratings.
@@ -63,7 +62,7 @@ python train_model.py
 
 ## Contributors
 
-- [Your Name](https://github.com/your-username)
+- Dimitris Gkrekas https://github.com/Grecrack
 
 Feel free to contribute to this project by submitting pull requests or creating issues.
 
