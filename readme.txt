@@ -57,7 +57,7 @@ The recommendation models are trained using the `train_model.py` script. The scr
 To train the models, run the following command:
 
 ```bash
-python train_model.py
+python flask_app.py
 ```
 
 ## Contributors
