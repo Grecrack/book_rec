@@ -1,5 +1,3 @@
-Sure! Here's a README template for the code:
-
 ```
 # Book Recommendation System
 
@@ -73,7 +71,3 @@ Feel free to contribute to this project by submitting pull requests or creating 
 
 This project is licensed under the [MIT License](LICENSE).
 ```
-
-You can customize the README with more specific information about the project, such as installation instructions, usage examples, or any additional features you've implemented. Also, don't forget to include the appropriate links to your repository, such as `<repository-url>`, and add yourself as a contributor.
-
-Let me know if you need any further assistance!
