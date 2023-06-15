@@ -265,16 +265,16 @@ def train_user():
 
 @app.route('/recommend', methods=['POST'])
 def recommend():
-            users = pd.read_csv('data/users.csv')
-    #try:
-            user_id = int(request.form.get('user_id'))
-    #    if user_id in users['user_id'].values:
+    users = pd.read_csv('data/users.csv')
+    try:
+        user_id = int(request.form.get('user_id'))
+        if user_id in users['user_id'].values:
             recommended_books = recommend_books(user_id)
             return render_template('recommended_books.html', books=recommended_books)
-    #    else:
-    #        return render_template('index.html', error=f"User ID {user_id} not found.")
-    #except:
-    #    return render_template('index.html', error=f"ERROR")
+        else:
+            return render_template('index.html', error=f"User ID {user_id} not found.")
+    except:
+        return render_template('index.html', error=f"User ID {user_id} not found in Training Data")
 
 @app.route('/update_model', methods=['POST'])
 def update_model():
