@@ -26,7 +26,7 @@ To run the code in this repository, you need the following:
 1. Clone the repository:
 
    ```bash
-   git clone [<repository-url>](https://github.com/Grecrack/book_rec)[/<repository-url>]
+   git clone [(https://github.com/Grecrack/book_rec)[-url>]](https://github.com/Grecrack/book_rec.git)](https://github.com/Grecrack/book_rec.git)
    ```
 
 2. Install the required dependencies:
