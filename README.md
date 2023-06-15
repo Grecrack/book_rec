@@ -1,7 +1,6 @@
 # Book Recommendation System
 
-This repository contains the code for a Book Recommendation System. The system allows users to rate books, receive personalized book recommendations, and view their profile and ratings.
-
+BookRec is a book recommendation system, designed and implemented as part of my thesis project for my university studies. Using machine learning techniques, it aims to provide users with personalized book suggestions tailored to their reading preferences."
 ## Features
 
 - Users can create a new account and receive a unique user ID.
