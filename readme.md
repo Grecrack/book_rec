@@ -45,7 +45,7 @@ To run the code in this repository, you need the following:
 
 ## Repository Structure
 
-- `app.py`: The main Flask application file that handles the routes and logic for the Book Recommendation System.
+- `flask_app.py`: The main Flask application file that handles the routes and logic for the Book Recommendation System.
 - `data/`: Directory containing the CSV files for ratings, books, and users.
 - `models/`: Directory containing the pre-trained recommendation models.
 - `templates/`: Directory containing the HTML templates for the user interface.
