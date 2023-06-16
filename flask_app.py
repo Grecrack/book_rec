@@ -194,14 +194,29 @@ def give_rating(user_id):
                            image_url=image_url)
                
 def create_user():
+    ratings=pd.read_csv('test/ratings.csv')
+    books=pd.read_csv('test/books_n.csv')
     users = pd.read_csv('data/users.csv')
-    ratings = pd.read_csv('data/ratings.csv')
-
+    filtered_books5 = books[books['average_rating'] >= 4]
+    filtered_books4 = books[(books['average_rating'] >= 3.0) & (books['average_rating'] < 4)]
+    filtered_books3= books[(books['average_rating'] >= 2.0) & (books['average_rating'] < 3.0)]
+    filtered_books2= books[(books['average_rating'] >= 1.0) & (books['average_rating'] < 2.0)]
+    filtered_books1= books[(books['average_rating'] >= 0) & (books['average_rating'] < 1)]
+    top_books_5 = filtered_books5[['id', 'ratings_5']]
+    top_books_4 = filtered_books4[['id', 'ratings_4']]
+    top_books_3 = filtered_books3[['id', 'ratings_3']]
+    top_books_2 = filtered_books2[['id', 'ratings_2']]
+    top_books_1 = filtered_books1[['id', 'ratings_1']]
+    filtered_top_books_5 = top_books_5.nlargest(20, 'ratings_5').tail(10)
+    filtered_top_books_4 = top_books_4.nlargest(20, 'ratings_4').tail(10)
+    filtered_top_books_3 = top_books_3.nlargest(20, 'ratings_3').tail(10)
+    filtered_top_books_2 = top_books_2.nlargest(20, 'ratings_2').tail(10)
+    filtered_top_books_1 = top_books_1.nlargest(20, 'ratings_1').tail(10)
     # Get the last user ID from the users.csv file
     last_user_id = users['user_id'].max()
 
     # Check if the last user ID is present in the ratings.csv file
-    if last_user_id not in ratings['user_id'].values:
+    if not ratings[(ratings['user_id'] == last_user_id) & (ratings['cold_start'] == False)].empty:
         new_user_id = last_user_id
     else:
         # Generate a new user ID by incrementing the last user ID
@@ -219,7 +234,34 @@ def create_user():
     users.to_csv('data/users.csv', index=False)
 
     # Return the new user ID as a response to the user
-    return new_user_id
+    
+    # Set the rating to 1-5
+    filtered_top_books_5['rating'] = 5
+    filtered_top_books_4['rating'] = 4
+    filtered_top_books_3['rating'] = 3
+    filtered_top_books_2['rating'] = 2
+    filtered_top_books_1['rating'] = 1
+
+    # Add a column for user_id
+
+    filtered_top_books_5['user_id'] = user_id
+    filtered_top_books_4['user_id'] = user_id
+    filtered_top_books_3['user_id'] = user_id
+    filtered_top_books_2['user_id'] = user_id
+    filtered_top_books_1['user_id'] = user_id
+
+    # Concatenate all DataFrames into one
+    coldstart_df = pd.concat([filtered_top_books_5[['id', 'user_id', 'rating']],
+                            filtered_top_books_4[['id', 'user_id', 'rating']],
+                            filtered_top_books_3[['id', 'user_id', 'rating']],
+                            filtered_top_books_2[['id', 'user_id', 'rating']],
+                            filtered_top_books_1[['id', 'user_id', 'rating']]])
+    coldstart_df = coldstart_df.rename(columns={"id":"book_id"})
+    coldstart_df['cold_start'] = True
+
+
+    ratings = pd.concat([ratings_n, combined_df], ignore_index=True)
+    return(new_user_id)
 
 def get_user_ratings(user_id):
     ratings = pd.read_csv('data/ratings.csv')
@@ -241,6 +283,11 @@ def get_user_ratings(user_id):
 @app.route('/')
 def home():
     return render_template('index.html')
+
+@app.route('/user', methods=['POST'])
+def user():
+    return render_template('user.html')
+
 
 @app.route('/new_user', methods=['GET'])
 def new_user():
@@ -301,4 +348,4 @@ def view_profile():
         return render_template('index.html', error=f"User ID {user_id} not found.")
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=True,port=5001)
