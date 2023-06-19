@@ -1,4 +1,5 @@
-from flask import Flask, request, render_template, Response
+from flask import Flask, request, render_template, Response, url_for, redirect
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from keras.models import Model,load_model
 from keras.optimizers import RMSprop
 from keras.losses import LogCosh
@@ -6,11 +7,33 @@ from keras.layers import Input, Embedding, Flatten,Dot
 from sklearn.model_selection import train_test_split
 import numpy as np
 import pandas as pd
-import os as time
+import os,  math
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'default-secret-key')
 training_completed = False
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+class User(UserMixin):
+    def __init__(self, id):
+        self.id = id
 
+    @classmethod
+    def get_user(cls, user_id):
+        users = pd.read_csv('data/users.csv')
+        if str(user_id) in users['user_id'].astype(str).values: 
+            return cls(user_id)
+        return None
+
+@login_manager.user_loader
+def load_user(user_id):
+    users = pd.read_csv('data/users.csv')
+
+    if str(user_id) in users['user_id'].astype(str).values: 
+        return User(user_id)
+    else:
+        return None
 
 def create_model(model,num_users,num_books):
     embedding_dim = 10
@@ -76,8 +99,7 @@ def retrain_model():
     return
 
 def recommend_books(user_id, num_books=5):
-            users = pd.read_csv('data/users.csv')
-    #try:
+
             model = load_model('models/model_Adam_Huber_batch16.tf')
             ratings = pd.read_csv('data/ratings.csv')
             books = pd.read_csv('data/books.csv')
@@ -113,8 +135,6 @@ def recommend_books(user_id, num_books=5):
                     "amazon_link": amazon_link
                 })
             return recommended_books
-    #except KeyError:
-        #return None
 
 def update_rating(user_id, book_id, rating):
     ratings = pd.read_csv('data/ratings.csv')
@@ -194,8 +214,8 @@ def give_rating(user_id):
                            image_url=image_url)
                
 def create_user():
-    ratings=pd.read_csv('test/ratings.csv')
-    books=pd.read_csv('test/books_n.csv')
+    ratings=pd.read_csv('data/ratings.csv')
+    books=pd.read_csv('data/books.csv')
     users = pd.read_csv('data/users.csv')
     filtered_books5 = books[books['average_rating'] >= 4]
     filtered_books4 = books[(books['average_rating'] >= 3.0) & (books['average_rating'] < 4)]
@@ -260,7 +280,7 @@ def create_user():
     coldstart_df['cold_start'] = True
 
 
-    ratings = pd.concat([ratings_n, combined_df], ignore_index=True)
+    ratings = pd.concat([ratings, coldstart_df], ignore_index=True)
     return(new_user_id)
 
 def get_user_ratings(user_id):
@@ -278,25 +298,60 @@ def get_user_ratings(user_id):
 
     return user_ratings, rating_count
 
-#---------------------------------------------#
+def load_user(user_id):
+    return User(user_id)
+
+#----------------------------------------------------------------------------------------#
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('home.html')
 
-@app.route('/user', methods=['POST'])
-def user():
-    return render_template('user.html')
+@app.route('/login', methods=['POST','GET'])
+def login():
+    try:
+        user_id = request.form['user_id']
+        user = User.get_user(user_id)
 
+        if user is not None:
+            login_user(user)
+            return redirect(url_for('main'))
+        else:
+            return 'Invalid user_id'
+    except KeyError:
+        if current_user.is_authenticated:
+            user_id = current_user.id
+            return redirect(url_for('main'))
+        else:
+            return 'No user_id provided and no user logged in'
+
+@app.route('/main', methods=['POST','GET'])
+@login_required
+def main():
+    user_id = int(current_user.id)
+    if user_id is not None:
+        return render_template('user.html', user_id=user_id)
+    return "No user id provided", 400
 
 @app.route('/new_user', methods=['GET'])
 def new_user():
-    return render_template('index.html', error=f"New user ID {create_user()}")
+    user_id = create_user()
+    user = User.get_user(user_id)    
+    if user:
+        login_user(user)  # Log in the user
+        
+        # Redirect to the desired route, e.g., the user's profile page
+        return render_template('user.html', user_id=user_id)
+    
+    # Handle the case if the user is not found
+    return render_template('home.html', error="Failed to create new user")
 
-@app.route('/train_user', methods=['POST'])
+
+@app.route('/train_user', methods=['POST','GET'])
+@login_required
 def train_user():
     users = pd.read_csv('data/users.csv')
-    user_id = int(request.form.get('user_id'))
+    user_id = int(current_user.id)
     book_id = None
     rating = None
     if 'book_id' in request.form:
@@ -305,25 +360,27 @@ def train_user():
         rating = int(request.form.get('rating'))
     if (book_id!=None) & (rating!=None):
         return update_rating(user_id, book_id, rating)
-    if user_id in users['user_id'].values:
+    if str(user_id) in users['user_id'].astype(str).values:        
         return give_rating(user_id)
     else:
-        return render_template('index.html', error=f"User ID {user_id} not found.")
+        return render_template('user.html', error=f"User ID {user_id} not found.")
 
-@app.route('/recommend', methods=['POST'])
+@app.route('/recommend', methods=['POST','GET'])
+@login_required
 def recommend():
-    users = pd.read_csv('data/users.csv')
-    try:
-        user_id = int(request.form.get('user_id'))
-        if user_id in users['user_id'].values:
-            recommended_books = recommend_books(user_id)
-            return render_template('recommended_books.html', books=recommended_books)
-        else:
-            return render_template('index.html', error=f"User ID {user_id} not found.")
-    except:
-        return render_template('index.html', error=f"User ID {user_id} not found in Training Data")
+            users = pd.read_csv('data/users.csv')
+        #try:
+            user_id = int(current_user.id)
+            if int(user_id) in users['user_id'].astype(int).values:
+                recommended_books = recommend_books(user_id)
+                return render_template('recommended_books.html', books=recommended_books)
+            else:
+                return render_template('user.html', error=f"User ID {user_id} not found.")
+        #except:
+            #return render_template('user.html', error=f"User ID {user_id} not found in Training Data")
 
 @app.route('/update_model', methods=['POST'])
+@login_required
 def update_model():
     global training_completed
     training_completed = False
@@ -337,15 +394,28 @@ def update_model():
 
     return 'Model update completed', 202
 
-@app.route('/view_profile', methods=['POST'])
+@app.route('/view_profile', methods=['GET','POST'])
+@login_required
 def view_profile():
-    try:
-        user_id = int(request.form.get('user_id'))
-        user_ratings, rating_count = get_user_ratings(user_id)
-        return render_template('profile.html', user_id=user_id, ratings=user_ratings.to_dict('records'),
-                               rating_count=rating_count)
-    except:
-        return render_template('index.html', error=f"User ID {user_id} not found.")
+    user_id = int(current_user.id)
+    user_ratings, rating_count = get_user_ratings(user_id)
+
+    page = request.args.get('page', default=1, type=int)
+    per_page = 5
+    total_pages = math.ceil(len(user_ratings) / per_page)
+    paginated_ratings = user_ratings[(page-1)*per_page: page*per_page]
+
+    return render_template('profile.html', user_id=user_id, ratings=paginated_ratings.to_dict('records'),
+                           rating_count=rating_count, page=page, total_pages=total_pages)
+
+
+
+
+@app.route('/logout', methods=['POST','GET'])
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
 
 if __name__ == "__main__":
     app.run(debug=True,port=5001)
