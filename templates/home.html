@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Book Recommendation System</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      text-align: center;
+      border: 5px solid black;
+      padding: 20px;
+    }
+
+    .separator {
+      border-left: 1px solid black;
+      height: 100px;
+      margin: 0 20px;
+    }
+
+    form {
+      margin-top: 20px;
+    }
+
+    .error-message {
+      color: black;
+      margin-top: 10px;
+    }
+
+    .option-item {
+      margin: 0 10px;
+      display: grid;
+      grid-template-rows: auto auto;
+      justify-items: center;
+      align-content: center;
+    }
+
+    .option-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome to the Book Recommendation System</h1>
+
+    <div class="option-row">
+      <div class="option-item">
+        <h2>Create User</h2>
+        <form action="/new_user" method="GET">
+          <button type="submit">Create New User</button>
+        </form>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="option-item">
+        <h2>Enter User ID</h2>
+        <form method="POST" action="/login">
+            <input type="text" name="user_id" placeholder="User ID">
+            <input type="submit" value="Login">
+        </form>
+      </div>
+    </div>
+
+    {% if error %}
+    <p class="error-message">{{ error }}</p>
+    {% endif %}
+  </div>
+</body>
+</html>

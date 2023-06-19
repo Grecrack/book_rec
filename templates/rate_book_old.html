@@ -81,18 +81,6 @@
       width: 0%;
       transition: width 0.5s ease;
     }
-    .button {
-      display: block;
-      width: 80px;
-      height: 20px;
-      padding: 5px;
-      text-align:center;
-      align-items: center;
-      background-color: #333;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 5px;
-    }
   </style>
 </head>
 <body>
@@ -119,6 +107,7 @@
             </ul>
             <div class="button-container">
               <button type="submit">Submit</button>
+              <button type="button" onclick="startTraining()">Start Model Training</button>
               <form action="/train_user" method="POST">
                 <input type="hidden" name="user_id" value="{{ user_id }}">
                 <button type="submit">Skip</button>
@@ -131,8 +120,66 @@
         </div>
       </div>
       <br>
-      <a href="/main" class="button">Go Back</a>
+      <a href="/main" class="btn btn-primary">Go Back</a>
 
+      <div class="progress-bar">
+        <div class="progress-bar-inner" id="progress-bar"></div>
+      </div>
+      <p id="completion-message"></p>
+      <script>
+        function startTraining() {
+          var progressBar = document.getElementById("progress-bar");
+          var completionMessage = document.getElementById("completion-message");
+          var startTime = Date.now();
+          var currentTime = Date.now();
+          var trainingTime = 40000; // 40 seconds
+          var trainingCompleted = false; // Flag to track training completion
+
+          // Prevent the default form submission
+          document.getElementById("rating-form").addEventListener("submit", function(event) {
+            event.preventDefault();
+          });
+      
+          fetch('/update_model', { method: 'POST' })
+            .then(response => {
+              if (response.ok) {
+                trainingCompleted = true; // Set the flag to true if the request is successful
+              }
+              return response.text();
+            })
+            .then(ratings => {
+              alert(ratings);
+            });
+      
+          function updateProgress() {
+            var elapsedTime = currentTime - startTime;
+            var progress = Math.min((elapsedTime / trainingTime) * 100, 100); // Limit progress to 100%
+      
+            progressBar.style.width = progress + "%";
+      
+            if (trainingCompleted) {
+              progressBar.style.width = "100%"; // Set width to 100% if training is completed
+              clearInterval(progressInterval); // Stop updating progress
+              completionMessage.innerText = "Model Training Completed";
+            }
+          }
+      
+          updateProgress(); // Initial update
+      
+          var progressInterval = setInterval(function () {
+            currentTime = Date.now();
+            updateProgress();
+      
+            if (trainingCompleted) {
+              progressBar.style.width = "100%"; // Set width to 100% if training is completed
+              clearInterval(progressInterval); // Stop updating progress
+              completionMessage.innerText = "Model Training Completed";
+            } else if (currentTime - startTime >= trainingTime) {
+              progressBar.style.width = "100%"; // Set width to 100% after 60 seconds
+            }
+          }, 100); // Update progress every 100 milliseconds
+        }
+      </script>
   </div>
 </body>
 </html>

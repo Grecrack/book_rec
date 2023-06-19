@@ -14,6 +14,18 @@
       box-sizing: border-box;
       font-family: Arial, sans-serif;
     }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      display: flex;
+      border: 5px solid black;
+      padding: 20px;
+      flex-direction: column;
+    }
+    
+    h2 {
+      margin-top: 20px;
+    }
     
     ul {
       list-style-type: none;
@@ -35,14 +47,38 @@
     
     .book-title {
       font-weight: bold;
+      text-decoration: none;
+    }
+    
+    .book-title:hover {
+      text-decoration: underline;
     }
     
     .go-back-link {
       margin-top: 20px;
+      color: #333;
+      text-decoration: none;
+    }
+    
+    .go-back-link:hover {
+      text-decoration: underline;
+    }
+    .button {
+      display: block;
+      width: 80px;
+      height: 20px;
+      padding: 5px;
+      text-align:center;
+      align-items: center;
+      background-color: #333;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
+  <div class="container">
   <h2>Recommended Books</h2>
   <ul>
     {% for book in books %}
@@ -55,6 +91,7 @@
     {% endfor %}
   </ul>
   
-  <a href="/" class="go-back-link">Go Back</a>
+  <a href="/main" class="button">Go Back</a>
+</div>
 </body>
 </html>

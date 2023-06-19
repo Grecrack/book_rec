@@ -6,43 +6,109 @@
     /* Your custom CSS styles here */
     /* Example styles for the user profile */
     body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding: 5px;
+      box-sizing: border-box;
       font-family: Arial, sans-serif;
-      text-align: center;
+    }
+
+    .container {
+      max-width: 600px;
+      width: 100%;
+      display: flex;
+      border: 5px solid black;
+      padding: 20px;
+      flex-direction: column;
     }
 
     h1 {
-      margin-top: 20px;
+      margin-top: 10px;
     }
 
-    .profile-container {
-      margin-top: 20px;
+    table {
+      margin: 40px auto;
+      border-collapse: collapse;
     }
 
-    .rating-list {
-      list-style-type: none;
-      padding: 0;
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
     }
 
-    .rating-list li {
-      margin-bottom: 10px;
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+
+    .pagination {
+      margin-top: 0px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .pagination a {
+      display: inline-block;
+
+      margin-right: 5px;
+      padding: 5px 10px;
+      background-color: #f2f2f2;
+      text-decoration: none;
+      color: #333;
+    }
+
+    .pagination a.active {
+      background-color: #ddd;
+    }
+    .button {
+      display: block;
+      width: 80px;
+      height: 20px;
+      padding: 5px;
+      text-align:center;
+      align-items: center;
+      background-color: #333;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
-  <h1>User Profile</h1>
+  <div class="container">
+    <h1>User Profile</h1>
 
-  <div class="profile-container">
     <h2>User ID: {{ user_id }}</h2>
-
-    <h3>Ratings:</h3>
-    <ul class="rating-list">
+    <table>
+      <tr>
+        <th>Book Title</th>
+        <th>Rating</th>
+      </tr>
       {% for rating in ratings %}
-      <li>{{ rating.title }} - {{ rating.rating }}</li>
+      <tr>
+        <td>{{ rating.title }}</td>
+        <td style="text-align: center;">{{ rating.rating }}</td>
+      </tr>
       {% endfor %}
-    </ul>
 
-    <p>Rating Count: {{ rating_count }}</p>
-    <a href="/" class="go-back-link">Go Back</a>
+    </table>
+    <h4 style="text-align: center;"><p>Rating Count: {{ rating_count }}</p></h4>
+    <div class="pagination">
+      {% for num in range(1, total_pages + 1) %}
+        {% if num == page %}
+          <a class="active" href="{{ url_for('view_profile', page=num) }}">{{ num }}</a>
+        {% else %}
+          <a href="{{ url_for('view_profile', page=num) }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+
+      
+    </div>
+    <a href="/main" class="button">Go Back</a>
   </div>
 </body>
 </html>

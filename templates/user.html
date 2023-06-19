@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>User Page</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      text-align: center;
+      border: 5px solid black;
+      padding: 20px;
+    }
+
+    form {
+      margin-top: 20px;
+    }
+
+    .error-message {
+      color: black;
+      margin-top: 10px;
+    }
+
+    .option-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    .option-item {
+      margin: 0 10px;
+    }
+
+    .logout-button {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+    }
+
+    .recommend-button {
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome, User {{user_id}}</h1>
+
+    <form class="logout-button" action="/logout" method="POST">
+      <button type="submit">Logout</button>
+    </form>
+
+    <div class="option-row">
+      <div class="option-item">
+        <form action="/train_user" method="post">
+          <button type="submit">Rate a book</button>
+        </form>
+      </div>
+
+      <div class="option-item">
+        <form action="/view_profile" method="POST">
+          <button type="submit">View Profile</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="option-row">
+      <div class="option-item">
+        <form action="/recommend" method="POST">
+          <button class="recommend-button" type="submit">Get a recommendation</button>
+        </form>
+      </div>
+    </div>
+
+    {% if error %}
+    <p class="error-message">{{ error }}</p>
+    {% endif %}
+  </div>
+</body>
+</html>
