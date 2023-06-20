@@ -288,15 +288,15 @@ def get_user_ratings(user_id):
     users = pd.read_csv('data/users.csv')
     books = pd.read_csv('data/books.csv')
 
-    user_ratings = ratings[ratings['user_id'] == user_id]
+    user_ratings = ratings[(ratings['user_id'] == user_id) & (ratings['cold_start'] == False)]
     rating_count = users[users['user_id'] == user_id]['rating_count'].values[0]
-
+    
     if not user_ratings.empty:
         books = books[['id', 'title']]
         user_ratings = user_ratings.merge(books, left_on='book_id', right_on='id')
         user_ratings = user_ratings.drop(columns=['user_id'])
 
-    return user_ratings, rating_count
+    return user_ratings, int(rating_count)
 
 def load_user(user_id):
     return User(user_id)
