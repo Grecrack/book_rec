@@ -455,7 +455,7 @@ def enqueue_task():
     if task_queue.qsize() >= max_q_size:
         return "Task queue is full. Retry later."
     
-    while task_queue.qsize() >= MAX_QUEUE_SIZE:
+    while task_queue.qsize() >= max_q_size:
         task_queue.get()
     task_queue.put(retrain_model)
     return render_template('admin.html', error=f"Train started")
