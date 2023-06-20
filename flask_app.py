@@ -1,20 +1,27 @@
 from flask import Flask, request, render_template, Response, url_for, redirect
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from keras.models import Model,load_model
-from keras.optimizers import RMSprop
+from keras.optimizers import Adam
 from keras.losses import LogCosh
 from keras.layers import Input, Embedding, Flatten,Dot
 from sklearn.model_selection import train_test_split
+from apscheduler.schedulers.background import BackgroundScheduler
 import numpy as np
 import pandas as pd
-import os,  math
+import os,  math, threading, queue, signal, sys
+
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'default-secret-key')
-training_completed = False
+scheduler = BackgroundScheduler()
+delay_minutes = 5
+max_q_size = 2
+stop_threads = False
+update_ratings_executed = False
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
+task_queue = queue.Queue()
 class User(UserMixin):
     def __init__(self, id):
         self.id = id
@@ -24,15 +31,6 @@ class User(UserMixin):
         users = pd.read_csv('data/users.csv')
         if str(user_id) in users['user_id'].astype(str).values: 
             return cls(user_id)
-        return None
-
-@login_manager.user_loader
-def load_user(user_id):
-    users = pd.read_csv('data/users.csv')
-
-    if str(user_id) in users['user_id'].astype(str).values: 
-        return User(user_id)
-    else:
         return None
 
 def create_model(model,num_users,num_books):
@@ -69,11 +67,16 @@ def create_model(model,num_users,num_books):
     return new_model
 
 def retrain_model():
+    print('Starting - Retrain session')
+    global update_ratings_executed
+    if update_ratings_executed == True: 
+        update_ratings_executed = False
+        print('next scheduled retrain will be skipped')
     ratings=pd.read_csv('Data/ratings.csv')
-    optimizer = RMSprop()
+    optimizer = Adam()
     loss_function = LogCosh()
-    batch_size = 16
-    model_path = ('models/model_Adam_Huber_batch16.tf')
+    batch_size = 32
+    model_path = ('models/model_Adam_LogCosh_batch32.tf')
     model = load_model(model_path)
     user2user_encoded = {x: i for i, x in enumerate(ratings['user_id'].unique())}
     book2book_encoded = {x: i for i, x in enumerate(ratings['book_id'].unique())}
@@ -93,14 +96,16 @@ def retrain_model():
         x=[train['user'].values, train['book'].values],y=train['rating'].values,
         batch_size=batch_size,
         epochs=1,
-        verbose=1,
+        verbose=0,
         validation_data=([test['user'].values, test['book'].values], test['rating'].values)) 
+    print('Done')
     new_model.save(model_path)
+
     return
 
 def recommend_books(user_id, num_books=5):
 
-            model = load_model('models/model_Adam_Huber_batch16.tf')
+            model = load_model('models/model_Adam_LogCosh_batch32.tf')
             ratings = pd.read_csv('data/ratings.csv')
             books = pd.read_csv('data/books.csv')
             book_id_to_name = pd.Series(books.title.values, index = books.index).to_dict()
@@ -147,7 +152,7 @@ def update_rating(user_id, book_id, rating):
         old_rating = ratings.loc[
             (ratings['book_id'] == int(book_id)) & (ratings['user_id'] == int(user_id)), 'rating'].values[0]
         ratings.loc[(ratings['book_id'] == int(book_id)) & (ratings['user_id'] == int(user_id)), 'rating'] = int(
-            rating)
+            rating, 'cold_start' == [bool(False)])
         books.loc[books['id'] == int(book_id), 'average_rating'] = ratings.loc[
             ratings['book_id'] == int(book_id), 'rating'].mean()
         books.loc[books['id'] == int(book_id), f'ratings_{rating}'] += 1
@@ -156,7 +161,7 @@ def update_rating(user_id, book_id, rating):
         print('rating', old_rating, 'replaced with', rating)
     else:
         # Rating doesn't exist, add a new rating
-        new_rating = pd.DataFrame({'book_id': [int(book_id)], 'user_id': [int(user_id)], 'rating': [int(rating)]})
+        new_rating = pd.DataFrame({'book_id': [int(book_id)], 'user_id': [int(user_id)], 'rating': [int(rating)], 'cold_start':[bool(False)]})
         ratings = pd.concat([ratings, new_rating], ignore_index=True)
         # Update the ratings count and average rating in books.csv
         books.loc[books['id'] == int(book_id), 'ratings_count'] += 1
@@ -167,6 +172,8 @@ def update_rating(user_id, book_id, rating):
         users.loc[ratings['user_id'] == int(user_id), f'rating_count'] += 1
         print('rating', new_rating, 'added to', book_id, 'for',user_id)
 
+    if len(ratings[(ratings['cold_start'] == False) & (ratings['user_id'] == int(user_id))]) > 10:
+        ratings = ratings[(ratings['cold_start'] == False) | (ratings['user_id'] != int(user_id))]
 
     # Save the updated ratings DataFrame back to ratings.csv
     users.loc[users['user_id'] == int(user_id), 'new_data'] = True
@@ -174,14 +181,18 @@ def update_rating(user_id, book_id, rating):
     books.to_csv('data/books.csv', index=False)
     users.to_csv('data/users.csv', index=False)
     print('update rating.csv and book.csv')
+    global update_ratings_executed
+    if update_ratings_executed == False:
+        update_ratings_executed = True
+        print('scheduled a model retrain session')
     return give_rating(user_id)
 
 def get_unrated_books(user_id):
-    ratings= pd.read_csv('data/ratings.csv')
+    ratings = pd.read_csv('data/ratings.csv')
     books = pd.read_csv('data/books.csv')
-    rated_books = ratings[ratings['user_id'] == user_id]['book_id']
+    rated_books = ratings[(ratings['user_id'] == user_id) & (ratings['cold_start'] == False)]['book_id']
     all_book_ids = books['id']
-    unrated_books = all_book_ids[~all_book_ids.isin(rated_books)]
+    unrated_books = all_book_ids[~all_book_ids.isin(rated_books)]   
     return list(unrated_books)
 
 def sort_books_by_rating(books):
@@ -189,16 +200,6 @@ def sort_books_by_rating(books):
     book_ratings = ratings.groupby('book_id')['rating'].mean()
     sorted_books = book_ratings.loc[books].sort_values(ascending=False)
     return sorted_books.index.tolist()
-
-def progress_updates():
-    def generate():
-        progress = 0
-        while not training_completed:
-            yield f"data: {progress}\n\n"
-            time.sleep(0.1)
-        progress = 100
-        yield f"data: {progress}\n\n"
-    return Response(generate(), mimetype='text/event-stream')
 
 def give_rating(user_id):
     ratings= pd.read_csv('data/ratings.csv')
@@ -236,12 +237,14 @@ def create_user():
     last_user_id = users['user_id'].max()
 
     # Check if the last user ID is present in the ratings.csv file
-    if not ratings[(ratings['user_id'] == last_user_id) & (ratings['cold_start'] == False)].empty:
+    if ratings[(ratings['user_id'] == last_user_id) & (ratings['cold_start'] == False)].empty:
         new_user_id = last_user_id
+        return(new_user_id)
     else:
         # Generate a new user ID by incrementing the last user ID
         new_user_id = last_user_id + 1
 
+    print('check')
     # Create a new user DataFrame
     new_user = pd.DataFrame({'user_id': [new_user_id]})
 
@@ -250,10 +253,7 @@ def create_user():
 
     users.loc[users['user_id'] == int(new_user_id), 'rating_count'] = 0
 
-    # Save the updated users DataFrame to the users.csv file
-    users.to_csv('data/users.csv', index=False)
-
-    # Return the new user ID as a response to the user
+  
     
     # Set the rating to 1-5
     filtered_top_books_5['rating'] = 5
@@ -264,11 +264,11 @@ def create_user():
 
     # Add a column for user_id
 
-    filtered_top_books_5['user_id'] = user_id
-    filtered_top_books_4['user_id'] = user_id
-    filtered_top_books_3['user_id'] = user_id
-    filtered_top_books_2['user_id'] = user_id
-    filtered_top_books_1['user_id'] = user_id
+    filtered_top_books_5['user_id'] = new_user_id
+    filtered_top_books_4['user_id'] = new_user_id
+    filtered_top_books_3['user_id'] = new_user_id
+    filtered_top_books_2['user_id'] = new_user_id
+    filtered_top_books_1['user_id'] = new_user_id
 
     # Concatenate all DataFrames into one
     coldstart_df = pd.concat([filtered_top_books_5[['id', 'user_id', 'rating']],
@@ -281,6 +281,9 @@ def create_user():
 
 
     ratings = pd.concat([ratings, coldstart_df], ignore_index=True)
+    users.to_csv('data/users.csv', index=False)
+    ratings.to_csv('data/ratings.csv', index=False)
+    task_queue.put(retrain_model)
     return(new_user_id)
 
 def get_user_ratings(user_id):
@@ -301,7 +304,37 @@ def get_user_ratings(user_id):
 def load_user(user_id):
     return User(user_id)
 
+def background_task():
+    while not stop_threads:
+        task = task_queue.get()
+        if task is None:  
+            break  
+        print("Running background task:", task.__name__)
+        task()
+        task_queue.task_done()
+
+def schedule_retrain():
+    if update_ratings_executed:
+        update_ratings_executed=False
+        task_queue.put(retrain_model)
+        print("Retrain model executed")
+    else:
+        print("Update ratings function not executed yet. Skipping retrain model")
+
+def stop_background_task(signal, frame):
+    global stop_threads
+    stop_threads = True
+    try:
+        print("Terminating the application...")
+        sys.exit(0)
+    finally:
+        sys.exit(0)
 #----------------------------------------------------------------------------------------#
+task_thread = threading.Thread(target=background_task)
+task_thread.start()
+
+timer = threading.Timer(delay_minutes * 60, schedule_retrain)
+timer.start()
 
 @app.route('/')
 def home():
@@ -312,7 +345,9 @@ def login():
     try:
         user_id = request.form['user_id']
         user = User.get_user(user_id)
-
+        if user_id == ('0'):
+            login_user(user)
+            return redirect(url_for('admin_page'))
         if user is not None:
             login_user(user)
             return redirect(url_for('main'))
@@ -321,7 +356,12 @@ def login():
     except KeyError:
         if current_user.is_authenticated:
             user_id = current_user.id
-            return redirect(url_for('main'))
+            user = User.get_user(user_id)
+            if user == ('0'):
+                login_user(user)
+                return redirect(url_for('admin_page'))
+            else:
+                return redirect(url_for('main'))
         else:
             return 'No user_id provided and no user logged in'
 
@@ -379,21 +419,6 @@ def recommend():
         #except:
             #return render_template('user.html', error=f"User ID {user_id} not found in Training Data")
 
-@app.route('/update_model', methods=['POST'])
-@login_required
-def update_model():
-    global training_completed
-    training_completed = False
-    ratings = pd.read_csv('data/ratings.csv')
-    user_ids = ratings['user_id'].unique().tolist()
-    user2user_encoded = {x: i for i, x in enumerate(user_ids)}
-    book_ids = ratings['book_id'].unique().tolist()
-    book2book_encoded = {x: i for i, x in enumerate(book_ids)}
-    retrain_model()
-    training_completed = True
-
-    return 'Model update completed', 202
-
 @app.route('/view_profile', methods=['GET','POST'])
 @login_required
 def view_profile():
@@ -408,14 +433,43 @@ def view_profile():
     return render_template('profile.html', user_id=user_id, ratings=paginated_ratings.to_dict('records'),
                            rating_count=rating_count, page=page, total_pages=total_pages)
 
-
-
-
 @app.route('/logout', methods=['POST','GET'])
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('home'))
 
+@app.route("/admin")
+@login_required
+def admin_page():
+    user_id = int(current_user.id)
+    print(user_id)
+    if user_id == 0:
+        print('success')
+        return render_template("admin.html")
+    else:
+        return "Access denied"
+
+@app.route('/enqueue_task', methods=['GET'])
+def enqueue_task():
+    if task_queue.qsize() >= max_q_size:
+        return "Task queue is full. Retry later."
+    
+    while task_queue.qsize() >= MAX_QUEUE_SIZE:
+        task_queue.get()
+    task_queue.put(retrain_model)
+    return render_template('admin.html', error=f"Train started")
+
+@login_manager.user_loader
+def load_user(user_id):
+    users = pd.read_csv('data/users.csv')
+
+    if str(user_id) in users['user_id'].astype(str).values: 
+        return User(user_id)
+    else:
+        return None
+
 if __name__ == "__main__":
-    app.run(debug=True,port=5001)
+    signal.signal(signal.SIGINT, stop_background_task)
+    signal.signal(signal.SIGTERM, stop_background_task)
+    app.run(debug=True,port=5000)
